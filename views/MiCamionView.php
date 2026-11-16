@@ -1,6 +1,8 @@
 <?php 
 require_once 'views/includes/SideBarView.php'; 
 require_once 'views/includes/NavBarView.php';
+
+$camion = null;
 ?>
 
 <!DOCTYPE html>
@@ -89,10 +91,12 @@ require_once 'views/includes/NavBarView.php';
                                         <h3 class="text-dark font-weight-bold mb-1">Mi Camión</h3>
                                         <p class="text-muted mb-0">Información general del vehículo registrado</p>
                                     </div>
-                                    <button type="button" class="btn btn-warning rounded-pill" onclick="habilitarEdicion()">
-                                        <i class="mdi mdi-pencil"></i>
-                                        Editar
-                                    </button>
+                                    <?php if ($camion): ?>
+                                        <a href="index.php?menu=miespacio&id_camion=<?= (int) $camion['id_camion'] ?>" class="btn btn-primary rounded-pill ml-2">
+                                            <i class="mdi mdi-arrow-right"></i>
+                                            Continuar con espacio
+                                        </a>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </div>
@@ -115,45 +119,60 @@ require_once 'views/includes/NavBarView.php';
                         <div class="card border-0 shadow-sm h-100">
                             <div class="card-body">
                                 <h4 class="font-weight-bold mb-4">Información del Camión</h4>
-                                <form method="POST">
+                                <form method="POST" action="index.php?menu=micamion" id="formCamion">
+                                    <?= csrf_input(); ?>
+                                    <input type="hidden" name="accion" value="<?= $camion ? 'actualizar' : 'guardar' ?>">
+                                    <input type="hidden" name="id_camion" value="<?= (int) ($camion['id_camion'] ?? 0) ?>">
                                     <div class="row">
                                         <div class="col-md-6 form-group">
                                             <label class="font-weight-bold">Placa</label>
-                                            <input type="text" name="placa" class="form-control editable" value="123-BF-5" disabled>
+                                            <input type="text" name="placa" class="form-control" value="<?= e((string) ($camion['placa'] ?? '')) ?>" maxlength="20" required>
                                         </div>
                                         <div class="col-md-6 form-group">
                                             <label class="font-weight-bold">Marca</label>
-                                            <input type="text" name="marca" class="form-control editable" value="Freightliner" disabled>
+                                            <input type="text" name="marca" class="form-control" value="<?= e((string) ($camion['marca'] ?? '')) ?>">
                                         </div>
                                         <div class="col-md-6 form-group">
                                             <label class="font-weight-bold">Modelo</label>
-                                            <input type="text" name="modelo" class="form-control editable" value="Cascadia 2020" disabled>
+                                            <input type="text" name="modelo" class="form-control" value="<?= e((string) ($camion['modelo'] ?? '')) ?>" required>
+                                        </div>
+                                        <div class="col-md-6 form-group">
+                                            <label class="font-weight-bold">Línea</label>
+                                            <select name="id_linea" class="form-control" required>
+                                                <option value="">Selecciona una línea</option>
+                                                <?php foreach ($lineas as $linea): ?>
+                                                    <option value="<?= (int) $linea['id_linea'] ?>" <?= (int) ($camion['id_linea'] ?? 0) === (int) $linea['id_linea'] ? 'selected' : '' ?>>
+                                                        <?= e((string) $linea['nom_linea']) ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
                                         </div>
                                         <div class="col-md-6 form-group">
                                             <label class="font-weight-bold">Color</label>
-                                            <input type="text" name="color" class="form-control editable" value="Blanco" disabled>
+                                            <input type="text" name="color" class="form-control" value="<?= e((string) ($camion['color'] ?? '')) ?>">
                                         </div>
                                         <div class="col-md-6 form-group">
                                             <label class="font-weight-bold">Fecha de Entrada</label>
-                                            <input type="date" name="fecha" class="form-control editable" value="2026-04-22" disabled>
+                                            <input type="date" name="fecha" class="form-control" value="<?= e((string) ($camion['fecha_entrada'] ?? '')) ?>">
                                         </div>
                                         <div class="col-md-6 form-group">
                                             <label class="font-weight-bold">Hora de Entrada</label>
-                                            <input type="time" name="hora" class="form-control editable" value="19:55" disabled>
+                                            <input type="time" name="hora" class="form-control" value="<?= e((string) ($camion['hora_entrada'] ?? '')) ?>">
                                         </div>
                                         <div class="col-md-12 form-group">
                                             <label class="font-weight-bold">Estado</label>
-                                            <select name="estado" class="form-control editable" disabled>
-                                                <option value="En pensión" selected>En pensión</option>
-                                                <option value="Fuera de pensión">Fuera de pensión</option>
+                                            <select name="estado" class="form-control">
+                                                <option value="" selected>Selecciona un estado</option>
+                                                <option value="en_pension">En pensión</option>
+                                                <option value="fuera_de_pension">Fuera de pensión</option>
                                             </select>
                                         </div>
                                     </div>
 
                                     <div class="mt-4 d-flex flex-wrap">
-                                        <button type="submit" id="btnGuardar" class="btn btn-success rounded-pill mr-2 mb-2" disabled>
+                                        <button type="submit" id="btnGuardar" class="btn btn-success rounded-pill mr-2 mb-2">
                                             <i class="mdi mdi-content-save"></i>
-                                            Guardar Cambios
+                                            <?= $camion ? 'Guardar Cambios' : 'Guardar Camión' ?>
                                         </button>
                                     </div>
                                 </form>
@@ -175,6 +194,22 @@ function habilitarEdicion() {
 
     document.getElementById('btnGuardar').disabled = false;
 }
+
+document.getElementById('formCamion').addEventListener('submit', async function(event) {
+    event.preventDefault();
+
+    const respuesta = await fetch(this.action, {
+        method: 'POST',
+        body: new FormData(this),
+        headers: { 'Accept': 'application/json' }
+    });
+    const resultado = await respuesta.json();
+
+    alert(resultado.mensaje);
+    if (resultado.exito) {
+        window.location.href = 'index.php?menu=miespacio&id_camion=' + (resultado.id_camion || '');
+    }
+});
 
 </script>
 

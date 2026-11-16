@@ -1,6 +1,14 @@
 <?php 
 require_once 'views/includes/SideBarView.php'; 
 require_once 'views/includes/NavBarView.php';
+
+$apartadoActual = $apartados[0] ?? null;
+$numeroEspacioActual = (int) ($apartadoActual['numero_espacio'] ?? 0);
+$estadoEspacioActual = (string) ($apartadoActual['estado'] ?? 'sin_asignar');
+$espaciosPorNumero = [];
+foreach ($espacios as $espacio) {
+    $espaciosPorNumero[(int) $espacio['numero_espacio']] = $espacio;
+}
 ?>
 
 <!DOCTYPE html>
@@ -57,13 +65,20 @@ require_once 'views/includes/NavBarView.php';
                         <!-- MAPA -->
                         <div class="d-flex flex-wrap justify-content-center mb-5">
 
-                            <?php for($i = 1; $i <= 23; $i++): ?>
+                            <?php for($i = 1; $i <= 60; $i++): ?>
+                                <?php
+                                $espacioMapa = $espaciosPorNumero[$i] ?? null;
+                                $ocupado = $espacioMapa && ($espacioMapa['estado'] ?? '') !== 'disponible';
+                                $esActual = $i === $numeroEspacioActual;
+                                ?>
 
                                 <button
-                                    class="btn m-1 espacio-btn <?=($i == 12) ? 'btn-warning' : 'btn-secondary';?>"
+                                    class="btn m-1 espacio-btn <?= $esActual ? 'btn-warning' : ($ocupado ? 'btn-danger' : 'btn-secondary') ?>"
                                     onclick="seleccionarEspacio(<?=$i;?>)"
                                     id="espacio<?=$i;?>"
-                                    disabled>
+                                    data-id-espacio="<?= (int) ($espacioMapa['id_espacio'] ?? 0) ?>"
+                                    data-disponible="<?= !$ocupado || $esActual ? '1' : '0' ?>"
+                                    <?= $ocupado && !$esActual ? 'disabled' : '' ?>>
 
                                     <?=$i;?>
 
@@ -106,7 +121,7 @@ require_once 'views/includes/NavBarView.php';
                                             <input type="text"
                                                    id="numeroEspacio"
                                                    class="form-control text-center"
-                                                   value="12"
+                                                   value="<?= $numeroEspacioActual ?: '' ?>"
                                                    disabled>
 
                                         </td>
@@ -124,7 +139,7 @@ require_once 'views/includes/NavBarView.php';
                                             <input type="text"
                                                    id="terreno"
                                                    class="form-control text-center"
-                                                   value="Terreno 2"
+                                                   value="<?= e((string) ($apartadoActual['terreno'] ?? '')) ?>"
                                                    disabled>
 
                                         </td>
@@ -140,9 +155,9 @@ require_once 'views/includes/NavBarView.php';
                                         <td>
 
                                             <label id="estadoBadge"
-                                                   class="badge badge-success p-2">
+                                                                    class="badge <?= $estadoEspacioActual === 'activo' ? 'badge-success' : 'badge-secondary' ?> p-2">
 
-                                                En Uso
+                                                                <?= e($estadoEspacioActual === 'activo' ? 'En uso' : 'Sin asignar') ?>
 
                                             </label>
 
@@ -167,8 +182,22 @@ require_once 'views/includes/NavBarView.php';
 
                             </button>
 
+                            <form method="POST" action="index.php?menu=miespacio" id="formEspacio" class="d-inline">
+                                <?= csrf_input(); ?>
+                                <input type="hidden" name="accion" value="guardar">
+                                <input type="hidden" name="id_camion" value="<?= $id_camion_seleccionado ?>">
+                                <input type="hidden" name="id_espacio" id="idEspacioSeleccionado" value="<?= (int) ($espaciosPorNumero[$numeroEspacioActual]['id_espacio'] ?? 0) ?>">
+                                <input type="hidden" name="id_apartado" value="<?= (int) ($apartadoActual['id_apartado'] ?? 0) ?>">
+                                <input type="hidden" name="fecha_inicio" value="<?= date('Y-m-d') ?>">
+                                <input type="hidden" name="precio_total" value="2500">
+                                <button type="submit" id="btnGuardarEspacio" class="btn btn-success rounded-pill mr-2" <?= $apartadoActual ? 'disabled' : '' ?>>
+                                    <i class="mdi mdi-content-save"></i>
+                                    Guardar Espacio
+                                </button>
+                            </form>
+
                             <button class="btn btn-danger rounded-pill"
-                                    onclick="liberarEspacio()">
+                                    onclick="liberarEspacio()" <?= $apartadoActual ? '' : 'disabled' ?>>
 
                                 <i class="mdi mdi-close-circle"></i>
                                 Liberar Espacio
@@ -186,8 +215,24 @@ require_once 'views/includes/NavBarView.php';
             <!-- SCRIPT -->
             <script>
 
-            let modoEdicion = false;
-            let espacioActual = 12;
+            let modoEdicion = <?= $apartadoActual ? 'false' : 'true' ?>;
+            let espacioActual = <?= $numeroEspacioActual ?: 0 ?>;
+
+            document.getElementById('formEspacio').addEventListener('submit', async function(event) {
+                event.preventDefault();
+
+                const respuesta = await fetch(this.action, {
+                    method: 'POST',
+                    body: new FormData(this),
+                    headers: { 'Accept': 'application/json' }
+                });
+                const resultado = await respuesta.json();
+
+                alert(resultado.mensaje);
+                if (resultado.exito) {
+                    window.location.reload();
+                }
+            });
 
             function editarEspacio() {
 
@@ -196,10 +241,11 @@ require_once 'views/includes/NavBarView.php';
                 let botones = document.querySelectorAll('.espacio-btn');
 
                 botones.forEach(function(btn) {
-
-                    btn.disabled = false;
+                    btn.disabled = btn.dataset.disponible !== '1';
 
                 });
+
+                document.getElementById('btnGuardarEspacio').disabled = false;
 
             }
 
@@ -207,39 +253,29 @@ require_once 'views/includes/NavBarView.php';
 
                 if(!modoEdicion) return;
 
-                // quitar color anterior
-                document.getElementById("espacio" + espacioActual)
-                    .classList.remove("btn-warning");
-
-                document.getElementById("espacio" + espacioActual)
-                    .classList.add("btn-secondary");
+                const espacioAnterior = document.getElementById("espacio" + espacioActual);
+                if (espacioAnterior) {
+                    espacioAnterior.classList.remove("btn-warning");
+                    espacioAnterior.classList.add("btn-secondary");
+                }
 
                 // nuevo espacio
                 espacioActual = numero;
 
-                document.getElementById("espacio" + numero)
-                    .classList.remove("btn-secondary");
+                const espacioSeleccionado = document.getElementById("espacio" + numero);
+                espacioSeleccionado.classList.remove("btn-secondary", "btn-danger");
 
-                document.getElementById("espacio" + numero)
-                    .classList.add("btn-warning");
+                espacioSeleccionado.classList.add("btn-warning");
 
                 // actualizar tabla
                 document.getElementById("numeroEspacio").value = numero;
+                document.getElementById("idEspacioSeleccionado").value = espacioSeleccionado.dataset.idEspacio;
 
                 // cambiar terreno automático
-                let terreno = "Terreno 1";
-
-                if(numero >= 8 && numero <= 15) {
-
-                    terreno = "Terreno 2";
-
-                }
-
-                if(numero >= 16) {
-
-                    terreno = "Terreno 3";
-
-                }
+                let terreno = <?= json_encode(array_map(static fn (array $espacio): array => [
+                    'numero' => (int) $espacio['numero_espacio'],
+                    'terreno' => (string) $espacio['terreno'],
+                ], $espacios)) ?>.find(item => item.numero === numero)?.terreno || '';
 
                 document.getElementById("terreno").value = terreno;
 
@@ -247,23 +283,20 @@ require_once 'views/includes/NavBarView.php';
 
             function liberarEspacio() {
 
-                document.getElementById("espacio" + espacioActual)
-                    .classList.remove("btn-warning");
+                const form = document.getElementById('formEspacio');
+                const datos = new FormData(form);
+                datos.set('accion', 'finalizar');
 
-                document.getElementById("espacio" + espacioActual)
-                    .classList.add("btn-secondary");
-
-                document.getElementById("numeroEspacio").value = "";
-
-                document.getElementById("terreno").value = "";
-
-                let estado = document.getElementById("estadoBadge");
-
-                estado.innerHTML = "Fuera de Uso";
-
-                estado.classList.remove("badge-success");
-
-                estado.classList.add("badge-danger");
+                fetch(form.action, {
+                    method: 'POST',
+                    body: datos,
+                    headers: { 'Accept': 'application/json' }
+                }).then(respuesta => respuesta.json()).then(resultado => {
+                    alert(resultado.mensaje);
+                    if (resultado.exito) {
+                        window.location.reload();
+                    }
+                });
 
             }
 

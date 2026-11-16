@@ -11,4 +11,11 @@ return [
     'DB_USER'    => 'root',
     'DB_PASS'    => '',
     'DB_CHARSET' => 'utf8mb4',
+    'MAIL_FROM'  => 'nts.contacto.2@gmail.com',
+    'MAIL_FROM_NAME' => 'House Fix Seguridad',
+    'MAIL_SMTP_USER' => 'nts.contacto.2@gmail.com',
+    'MAIL_SMTP_PASSWORD' => 'enjelcfgjoyoovxa',
+    'MAIL_USERNAME' => 'nts.contacto.2@gmail.com',
+    'MAIL_CA_FILE' => 'C:/laragon/bin/laragon/utils/curl-ca-bundle.crt',
+    'MAIL_VERIFY_SSL' => false,
 ];

@@ -19,6 +19,7 @@ class MiCamionController {
         }
 
         $camiones = $this->micamionmodel->obtenerPorUsuario($id_usuario);
+        $lineas = $this->micamionmodel->obtenerLineas();
         include "views/MiCamionView.php";
     }
 
@@ -47,20 +48,25 @@ class MiCamionController {
         }
 
         $placa = $_POST['placa'] ?? '';
+        $id_linea = (int) ($_POST['id_linea'] ?? 0);
         $marca = $_POST['marca'] ?? '';
         $modelo = $_POST['modelo'] ?? '';
+        $fecha = $_POST['fecha'] ?? null;
+        $hora = $_POST['hora'] ?? null;
+        $estado = $_POST['estado'] ?? 'en_pension';
         $color = $_POST['color'] ?? '';
         $anio = $_POST['anio'] ?? '';
 
         // Validar campos
-        if (empty($placa) || empty($marca) || empty($modelo) || empty($anio)) {
+        if (empty($placa) || empty($modelo) || $id_linea <= 0) {
             echo json_encode(['exito' => false, 'mensaje' => 'Faltan campos requeridos']);
             exit;
         }
 
-        if ($this->micamionmodel->guardar($id_usuario, $placa, $marca, $modelo, $color, $anio)) {
+        $idCamion = $this->micamionmodel->guardar($id_usuario, $id_linea, $placa, $marca, $modelo, $color, $anio, $fecha, $hora, $estado);
+        if ($idCamion > 0) {
             logger($_SESSION['usuario_id'], "Registro de camión", "camiones", null, "Placa: $placa");
-            echo json_encode(['exito' => true, 'mensaje' => 'Camión registrado correctamente']);
+            echo json_encode(['exito' => true, 'mensaje' => 'Camión registrado correctamente', 'id_camion' => $idCamion]);
         } else {
             echo json_encode(['exito' => false, 'mensaje' => 'Error al registrar el camión']);
         }
@@ -103,12 +109,16 @@ class MiCamionController {
         }
 
         $id_camion = $_POST['id_camion'] ?? null;
+        $placa = trim((string) ($_POST['placa'] ?? ''));
         $marca = $_POST['marca'] ?? '';
         $modelo = $_POST['modelo'] ?? '';
+        $fecha = $_POST['fecha'] ?? null;
+        $hora = $_POST['hora'] ?? null;
+        $estado = $_POST['estado'] ?? 'en_pension';
         $color = $_POST['color'] ?? '';
         $anio = $_POST['anio'] ?? '';
 
-        if (!$id_camion || empty($marca) || empty($modelo)) {
+        if (!$id_camion || $placa === '' || empty($modelo)) {
             echo json_encode(['exito' => false, 'mensaje' => 'Faltan campos requeridos']);
             exit;
         }
@@ -119,7 +129,7 @@ class MiCamionController {
             exit;
         }
 
-        if ($this->micamionmodel->actualizar($id_camion, $marca, $modelo, $color, $anio)) {
+        if ($this->micamionmodel->actualizar($id_camion, $placa, $modelo, $fecha, $hora, $estado, $marca, $color, $anio)) {
             logger($_SESSION['usuario_id'], "Actualización de camión", "camiones", $id_camion);
             echo json_encode(['exito' => true, 'mensaje' => 'Camión actualizado correctamente']);
         } else {

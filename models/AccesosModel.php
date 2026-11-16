@@ -10,7 +10,7 @@ class AccesosModel {
      * Obtiene todos los accesos del usuario
      */
     public function obtenerPorUsuario($id_usuario) {
-        $sql = "SELECT a.*, c.placa, c.marca, c.modelo 
+        $sql = "SELECT a.*, c.placa, c.modelo
                 FROM accesos a
                 JOIN camiones c ON a.id_camion = c.id_camion
                 WHERE a.id_usuario = ?
@@ -24,7 +24,7 @@ class AccesosModel {
      * Obtiene accesos de un camión específico
      */
     public function obtenerPorCamion($id_camion) {
-        $sql = "SELECT a.*, c.placa, c.marca 
+        $sql = "SELECT a.*, c.placa, c.modelo
                 FROM accesos a
                 JOIN camiones c ON a.id_camion = c.id_camion
                 WHERE a.id_camion = ?
@@ -38,7 +38,7 @@ class AccesosModel {
      * Obtiene un acceso específico
      */
     public function obtenerPorId($id_acceso) {
-        $sql = "SELECT a.*, c.placa, c.marca, c.modelo 
+        $sql = "SELECT a.*, c.placa, c.modelo
                 FROM accesos a
                 JOIN camiones c ON a.id_camion = c.id_camion
                 WHERE a.id_acceso = ?";
@@ -74,7 +74,7 @@ class AccesosModel {
      * Obtiene accesos del día
      */
     public function obtenerDelDia($id_usuario) {
-        $sql = "SELECT a.*, c.placa, c.marca 
+        $sql = "SELECT a.*, c.placa, c.modelo
                 FROM accesos a
                 JOIN camiones c ON a.id_camion = c.id_camion
                 WHERE a.id_usuario = ? AND a.fecha = CURDATE()

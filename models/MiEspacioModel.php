@@ -10,7 +10,7 @@ class MiEspacioModel {
      * Obtiene todos los apartados del usuario
      */
     public function obtenerPorUsuario($id_usuario) {
-        $sql = "SELECT a.*, e.numero_espacio, e.terreno, e.precio_mensual, c.placa, c.marca, c.modelo 
+        $sql = "SELECT a.*, e.numero_espacio, e.terreno, e.precio_mensual, c.placa, c.modelo
                 FROM apartados a
                 JOIN espacios e ON a.id_espacio = e.id_espacio
                 LEFT JOIN camiones c ON a.id_camion = c.id_camion
@@ -25,7 +25,7 @@ class MiEspacioModel {
      * Obtiene un apartado específico
      */
     public function obtenerPorId($id_apartado) {
-        $sql = "SELECT a.*, e.numero_espacio, e.terreno, e.precio_mensual, c.placa, c.marca, c.modelo 
+        $sql = "SELECT a.*, e.numero_espacio, e.terreno, e.precio_mensual, c.placa, c.modelo
                 FROM apartados a
                 JOIN espacios e ON a.id_espacio = e.id_espacio
                 LEFT JOIN camiones c ON a.id_camion = c.id_camion
@@ -41,6 +41,17 @@ class MiEspacioModel {
     public function obtenerEspaciosDisponibles() {
         $sql = "SELECT * FROM espacios WHERE estado = 'disponible' ORDER BY terreno, numero_espacio";
         return $this->db->query($sql)->fetchAll();
+    }
+
+    public function obtenerTodosEspacios() {
+        return $this->db->query("SELECT * FROM espacios ORDER BY numero_espacio")->fetchAll();
+    }
+
+    public function obtenerCamionesPorUsuario($id_usuario) {
+        $sql = "SELECT id_camion, placa, modelo FROM camiones WHERE id_usuario = ? ORDER BY id_camion DESC";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$id_usuario]);
+        return $stmt->fetchAll();
     }
 
     /**
@@ -65,6 +76,36 @@ class MiEspacioModel {
         $sql = "UPDATE apartados SET fecha_fin = ?, motivo = ? WHERE id_apartado = ?";
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([$fecha_fin, $motivo, $id_apartado]);
+    }
+
+    public function cambiarEspacio($id_apartado, $id_espacio) {
+        $apartado = $this->obtenerPorId($id_apartado);
+        if (!$apartado) {
+            return false;
+        }
+
+        if ((int) $apartado['id_espacio'] === (int) $id_espacio) {
+            return true;
+        }
+
+        $stmt = $this->db->prepare("SELECT id_espacio FROM espacios WHERE id_espacio = ? AND estado = 'disponible'");
+        $stmt->execute([$id_espacio]);
+        if (!$stmt->fetch()) {
+            return false;
+        }
+
+        $this->db->beginTransaction();
+        try {
+            $this->cambiarEstadoEspacio($apartado['id_espacio'], 'disponible');
+            $this->cambiarEstadoEspacio($id_espacio, 'ocupado');
+            $stmt = $this->db->prepare('UPDATE apartados SET id_espacio = ? WHERE id_apartado = ?');
+            $stmt->execute([$id_espacio, $id_apartado]);
+            $this->db->commit();
+            return true;
+        } catch (Throwable $exception) {
+            $this->db->rollBack();
+            return false;
+        }
     }
 
     /**

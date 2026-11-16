@@ -1,6 +1,12 @@
 <?php 
 require_once 'views/includes/SideBarView.php'; 
 require_once 'views/includes/NavBarView.php';
+
+$resumen = $resumen ?: [];
+$totalPagado = (float) ($resumen['pagado'] ?? 0);
+$totalPendiente = (float) ($resumen['pendiente'] ?? 0);
+$totalRechazado = (float) ($resumen['rechazado'] ?? 0);
+$pagosRegistrados = (int) ($resumen['total'] ?? 0);
 ?>
 
 <!DOCTYPE html>
@@ -63,6 +69,9 @@ require_once 'views/includes/NavBarView.php';
               <button class="btn btn-primary" data-toggle="modal" data-target="#registrarPagoModal">
                 <i class="mdi mdi-plus mr-2"></i>Registrar Pago
               </button>
+              <a href="index.php?menu=accesos" class="btn btn-outline-secondary ml-2">
+                <i class="mdi mdi-history mr-2"></i>Ver accesos
+              </a>
             </div>
 
             <!-- Estadísticas -->
@@ -73,8 +82,8 @@ require_once 'views/includes/NavBarView.php';
                     <div class="d-flex justify-content-between align-items-center">
                       <div>
                         <h5 class="card-title text-muted font-weight-normal mb-1">Total Pagado</h5>
-                        <h3 class="text-dark font-weight-bold mb-0">$45,250</h3>
-                        <small class="text-muted">Este año</small>
+                        <h3 class="text-dark font-weight-bold mb-0">$<?= number_format($totalPagado, 2) ?></h3>
+                        <small class="text-muted"><?= $pagosRegistrados ?> registros</small>
                       </div>
                       <i class="mdi mdi-cash-multiple icon-lg text-primary opacity-50"></i>
                     </div>
@@ -88,8 +97,8 @@ require_once 'views/includes/NavBarView.php';
                     <div class="d-flex justify-content-between align-items-center">
                       <div>
                         <h5 class="card-title text-muted font-weight-normal mb-1">Pagos Pendientes</h5>
-                        <h3 class="text-dark font-weight-bold mb-0">$8,500</h3>
-                        <small class="text-muted">3 pendientes</small>
+                        <h3 class="text-dark font-weight-bold mb-0">$<?= number_format($totalPendiente, 2) ?></h3>
+                        <small class="text-muted">Pagos pendientes</small>
                       </div>
                       <i class="mdi mdi-clock-outline icon-lg text-warning opacity-50"></i>
                     </div>
@@ -103,8 +112,8 @@ require_once 'views/includes/NavBarView.php';
                     <div class="d-flex justify-content-between align-items-center">
                       <div>
                         <h5 class="card-title text-muted font-weight-normal mb-1">Al Corriente</h5>
-                        <h3 class="text-dark font-weight-bold mb-0">$2,750</h3>
-                        <small class="text-muted">Próximo mes</small>
+                        <h3 class="text-dark font-weight-bold mb-0">$<?= number_format($totalPagado, 2) ?></h3>
+                        <small class="text-muted">Pagos confirmados</small>
                       </div>
                       <i class="mdi mdi-check-circle icon-lg text-success opacity-50"></i>
                     </div>
@@ -118,8 +127,8 @@ require_once 'views/includes/NavBarView.php';
                     <div class="d-flex justify-content-between align-items-center">
                       <div>
                         <h5 class="card-title text-muted font-weight-normal mb-1">Vencidos</h5>
-                        <h3 class="text-dark font-weight-bold mb-0">$1,200</h3>
-                        <small class="text-muted">1 vencido</small>
+                        <h3 class="text-dark font-weight-bold mb-0">$<?= number_format($totalRechazado, 2) ?></h3>
+                        <small class="text-muted">Pagos rechazados</small>
                       </div>
                       <i class="mdi mdi-alert-circle icon-lg text-danger opacity-50"></i>
                     </div>

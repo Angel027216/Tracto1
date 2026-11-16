@@ -10,7 +10,7 @@ class MiCamionModel {
      * Obtiene todos los camiones del usuario
      */
     public function obtenerPorUsuario($id_usuario) {
-        $sql = "SELECT * FROM camiones WHERE id_usuario = ? ORDER BY fecha_creacion DESC";
+        $sql = "SELECT * FROM camiones WHERE id_usuario = ? ORDER BY id_camion DESC";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([$id_usuario]);
         return $stmt->fetchAll();
@@ -29,20 +29,29 @@ class MiCamionModel {
     /**
      * Registra un nuevo camión
      */
-    public function guardar($id_usuario, $placa, $marca, $modelo, $color, $anio) {
-        $sql = "INSERT INTO camiones (id_usuario, placa, marca, modelo, color, anio, fecha_entrada, hora_entrada, estado) 
-                VALUES (?, ?, ?, ?, ?, ?, CURDATE(), CURTIME(), 'en_pension')";
+    public function guardar($id_usuario, $id_linea, $placa, $marca, $modelo, $color, $anio, $fecha = null, $hora = null, $estado = 'en_pension'): int {
+        $sql = "INSERT INTO camiones (id_usuario, id_linea, placa, modelo, fecha_entrada, hora_entrada, estado)
+                VALUES (?, ?, ?, ?, ?, ?, ?)";
         $stmt = $this->db->prepare($sql);
-        return $stmt->execute([$id_usuario, strtoupper($placa), $marca, $modelo, $color, $anio]);
+        if (!$stmt->execute([$id_usuario, $id_linea, strtoupper($placa), $modelo, $fecha, $hora, $estado])) {
+            return 0;
+        }
+
+        return (int) $this->db->lastInsertId();
+    }
+
+    public function obtenerLineas(): array
+    {
+        return $this->db->query('SELECT id_linea, nom_linea FROM linea ORDER BY nom_linea')->fetchAll();
     }
 
     /**
      * Actualiza datos del camión
      */
-    public function actualizar($id_camion, $marca, $modelo, $color, $anio) {
-        $sql = "UPDATE camiones SET marca = ?, modelo = ?, color = ?, anio = ? WHERE id_camion = ?";
+    public function actualizar($id_camion, $placa, $modelo, $fecha, $hora, $estado, $marca = '', $color = '', $anio = '') {
+        $sql = "UPDATE camiones SET placa = ?, modelo = ?, fecha_entrada = ?, hora_entrada = ?, estado = ? WHERE id_camion = ?";
         $stmt = $this->db->prepare($sql);
-        return $stmt->execute([$marca, $modelo, $color, $anio, $id_camion]);
+        return $stmt->execute([strtoupper($placa), $modelo, $fecha, $hora, $estado, $id_camion]);
     }
 
     /**

@@ -31,10 +31,15 @@
                 </div>
                 <h4>Bienvenido a Tracto Pension San Leonardo!</h4>
                 <h6 class="font-weight-light">Acceso al sistema!</h6>
+                <?php if (!empty($_SESSION['mensajeLogin'])): ?>
+                  <div class="alert alert-success"><?= e($_SESSION['mensajeLogin']) ?></div>
+                  <?php unset($_SESSION['mensajeLogin']); ?>
+                <?php endif; ?>
                 <?php if (!empty($errorLogin)): ?>
                   <div class="alert alert-danger"><?= e($errorLogin) ?></div>
                 <?php endif; ?>
                 <form class="pt-3" method="post" action="index.php?menu=login">
+                  <?= csrf_input() ?>
                   <div class="form-group">
                     <label for="exampleInputEmail">Usuario</label>
                     <div class="input-group">

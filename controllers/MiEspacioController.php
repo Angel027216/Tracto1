@@ -20,6 +20,10 @@ class MiEspacioController {
 
         $apartados = $this->miespaciomodel->obtenerPorUsuario($id_usuario);
         $estadisticas = $this->miespaciomodel->obtenerEstadisticas();
+        $camiones = $this->miespaciomodel->obtenerCamionesPorUsuario($id_usuario);
+        $espacios_disponibles = $this->miespaciomodel->obtenerEspaciosDisponibles();
+        $espacios = $this->miespaciomodel->obtenerTodosEspacios();
+        $id_camion_seleccionado = (int) ($_GET['id_camion'] ?? ($camiones[0]['id_camion'] ?? 0));
         include "views/MiEspacioview.php";
     }
 
@@ -50,6 +54,7 @@ class MiEspacioController {
 
         $id_espacio = $_POST['id_espacio'] ?? null;
         $id_camion = $_POST['id_camion'] ?? null;
+        $id_apartado = (int) ($_POST['id_apartado'] ?? 0);
         $fecha_inicio = $_POST['fecha_inicio'] ?? '';
         $fecha_fin = $_POST['fecha_fin'] ?? '';
         $precio_total = $_POST['precio_total'] ?? 0;
@@ -57,6 +62,18 @@ class MiEspacioController {
         // Validar
         if (!$id_espacio || !$id_camion || empty($fecha_inicio)) {
             echo json_encode(['exito' => false, 'mensaje' => 'Faltan campos requeridos']);
+            exit;
+        }
+
+        if ($id_apartado > 0) {
+            $apartado = $this->miespaciomodel->obtenerPorId($id_apartado);
+            if (!$apartado || (int) $apartado['id_usuario'] !== (int) $id_usuario) {
+                echo json_encode(['exito' => false, 'mensaje' => 'No autorizado']);
+                exit;
+            }
+
+            $exito = $this->miespaciomodel->cambiarEspacio($id_apartado, $id_espacio);
+            echo json_encode(['exito' => $exito, 'mensaje' => $exito ? 'Espacio actualizado correctamente' : 'El espacio seleccionado no está disponible']);
             exit;
         }
 

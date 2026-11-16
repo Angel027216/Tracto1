@@ -17,6 +17,7 @@ if ($menu === 'logout') {
 
 // Iniciar sesión con el usuario nuevo, reemplazando cualquier sesión anterior.
 if ($menu === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf_token();
     $identificador = trim((string) ($_POST['identificador'] ?? ''));
     $passwordLogin = (string) ($_POST['password'] ?? '');
     $usuarioModel = new Usuario((new Database())->getConnection());
@@ -29,12 +30,46 @@ if ($menu === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($usuario && !empty($usuario['password']) && password_verify($passwordLogin, $usuario['password'])) {
         $_SESSION = [];
         session_regenerate_id(true);
+
+        if (preparar_verificacion_login($usuario)) {
+            redirect('index.php?menu=verificar');
+        }
+
+        $errorLogin = 'No fue posible enviar el código de verificación. Inténtalo nuevamente.';
+    } else {
+        $errorLogin = 'Usuario o contraseña incorrectos.';
+    }
+}
+
+if ($menu === 'verificar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf_token();
+    $verificacion = $_SESSION['login_2fa'] ?? null;
+    $codigo = trim((string) ($_POST['codigo'] ?? ''));
+
+    if (!is_array($verificacion)) {
+        redirect('index.php?menu=login');
+    }
+
+    $codigoValido = preg_match('/^\d{6}$/', $codigo)
+        && time() <= (int) ($verificacion['vence_en'] ?? 0)
+        && password_verify($codigo, (string) ($verificacion['codigo_hash'] ?? ''));
+
+    if ($codigoValido) {
+        $usuario = $verificacion['usuario'];
+        unset($_SESSION['login_2fa']);
+        session_regenerate_id(true);
         $_SESSION['usuario_id'] = (int) $usuario['id'];
         $_SESSION['usuario'] = $usuario;
         redirect('index.php?menu=panel');
     }
 
-    $errorLogin = 'Usuario o contraseña incorrectos.';
+    $_SESSION['login_2fa']['intentos'] = (int) ($verificacion['intentos'] ?? 0) + 1;
+    if ($_SESSION['login_2fa']['intentos'] >= 5 || time() > (int) ($verificacion['vence_en'] ?? 0)) {
+        unset($_SESSION['login_2fa']);
+        $errorVerificacion = 'El código venció o superaste el número de intentos. Inicia sesión nuevamente.';
+    } else {
+        $errorVerificacion = 'El código ingresado no es válido.';
+    }
 }
 
 if ($menu === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -67,18 +102,20 @@ if ($menu === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif ($usuarioModel->obtenerPorEmail($email)) {
                 $errores[] = 'Ya existe una cuenta con ese correo electrónico.';
             } else {
-                $usuarioId = $usuarioModel->registrar($nombre, $email, $password);
-                $_SESSION = [];
-                session_regenerate_id(true);
-                $_SESSION['usuario_id'] = $usuarioId;
-                $_SESSION['usuario'] = $usuarioModel->obtenerPorId($usuarioId);
-                redirect('index.php?menu=perfil');
+                $usuarioModel->registrar($nombre, $email, $password);
+                $_SESSION['mensajeLogin'] = 'Cuenta creada correctamente. Inicia sesión para verificar tu correo.';
+                redirect('index.php?menu=login');
             }
         } catch (Throwable $e) {
             logger('Error durante el registro: ' . $e->getMessage());
             $errores[] = 'No fue posible crear la cuenta. Inténtalo nuevamente.';
         }
     }
+}
+
+$menusProtegidos = ['panel', 'micamion', 'miespacio', 'apartarespacio', 'pagos', 'respaldo', 'historial', 'accesos', 'pensionados', 'linea', 'perfil', 'password'];
+if (in_array($menu, $menusProtegidos, true) && !isset($_SESSION['usuario_id'])) {
+    redirect('index.php?menu=login');
 }
 
 if ($menu === 'perfil' && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -143,6 +180,12 @@ if ($menu === 'perfil' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($menu=='login'){
     include 'views/LoginView.php';
 }
+else if ($menu=='verificar'){
+    if (!isset($_SESSION['login_2fa'])) {
+        redirect('index.php?menu=login');
+    }
+    include 'views/VerificarLoginView.php';
+}
 else if ($menu=='registro'){
     include 'views/RegistroLoginView.php';
 }
@@ -153,17 +196,76 @@ else if ($menu=='panel'){
     include 'views/PanelView.php';
 }
 else if ($menu=='micamion'){
-    include 'views/MiCamionView.php';
+    require_once 'models/MiCamionModel.php';
+    require_once 'controllers/MiCamionController.php';
+
+    $miCamionController = new MiCamionController((new Database())->getConnection());
+    $accionCamion = (string) ($_POST['accion'] ?? '');
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        verify_csrf_token();
+        if ($accionCamion === 'guardar') {
+            $miCamionController->guardar();
+        } elseif ($accionCamion === 'actualizar') {
+            $miCamionController->actualizar();
+        } elseif ($accionCamion === 'eliminar') {
+            $miCamionController->eliminar();
+        }
+    }
+    $miCamionController->index();
 
 }
 else if ($menu=='miespacio'){
-    include 'views/MiEspacioview.php';
+    require_once 'models/MiEspacioModel.php';
+    require_once 'controllers/MiEspacioController.php';
+
+    $conexion = (new Database())->getConnection();
+    if (!tabla_disponible($conexion, 'apartados')) {
+        $apartados = [];
+        $estadisticas = [];
+        include 'views/MiEspacioview.php';
+    } else {
+        $miEspacioController = new MiEspacioController($conexion);
+        $accionEspacio = (string) ($_POST['accion'] ?? '');
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+            verify_csrf_token();
+            if ($accionEspacio === 'guardar') {
+                $miEspacioController->guardar();
+            } elseif ($accionEspacio === 'actualizar') {
+                $miEspacioController->actualizar();
+            } elseif ($accionEspacio === 'finalizar') {
+                $miEspacioController->finalizar();
+            }
+        }
+        $miEspacioController->index();
+    }
 }
 else if ($menu=='apartarespacio'){
     redirect('index.php?menu=panel');
 }
 else if ($menu=='pagos'){
-    include 'views/PagosView.php';
+    require_once 'models/PagosModel.php';
+    require_once 'controllers/PagosController.php';
+
+    $conexion = (new Database())->getConnection();
+    if (!tabla_disponible($conexion, 'pagos')) {
+        $pagos = [];
+        $resumen = [];
+        include 'views/PagosView.php';
+    } else {
+        $pagosController = new PagosController($conexion);
+        $accionPago = (string) ($_POST['accion'] ?? '');
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+            verify_csrf_token();
+            if ($accionPago === 'guardar') {
+                $pagosController->guardar();
+            } elseif ($accionPago === 'marcar_pagado') {
+                $pagosController->marcarPagado();
+            } elseif ($accionPago === 'rechazar') {
+                $pagosController->rechazar();
+            }
+        }
+        $pagosController->index();
+    }
 }
 
 else if ($menu=='respaldo'){
@@ -192,10 +294,33 @@ else if ($menu=='historial'){
 }
 
 else if ($menu=='accesos'){
-    include 'views/Accesosview.php';
+    require_once 'models/AccesosModel.php';
+    require_once 'controllers/AccesosController.php';
+
+    $conexion = (new Database())->getConnection();
+    if (!tabla_disponible($conexion, 'accesos')) {
+        $accesos = [];
+        $estadisticas = [];
+        $accesos_hoy = [];
+        include 'views/Accesosview.php';
+    } else {
+        $accesosController = new AccesosController($conexion);
+        $accionAcceso = (string) ($_POST['accion'] ?? '');
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+            verify_csrf_token();
+            if ($accionAcceso === 'registrar') {
+                $accesosController->registrar();
+            }
+        }
+        $accesosController->index();
+    }
 }
 
 else if ($menu=='pensionados'){
+    require_once 'models/PensionadosModel.php';
+    $pensionadosModel = new PensionadosModel((new Database())->getConnection());
+    $busquedaPensionados = trim((string) ($_GET['buscar'] ?? ''));
+    $pensionados = $pensionadosModel->listar($busquedaPensionados);
     include 'views/Pensionados.php';
 }
 
