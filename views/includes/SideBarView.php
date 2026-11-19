@@ -69,6 +69,15 @@ function SideBarView(){
             </li>
 
             <li class='nav-item'>
+              <a class='nav-link' href='?menu=control_diario'>
+                <span class='icon-bg'>
+                  <i class='mdi mdi-ticket-confirmation menu-icon'></i>
+                </span>
+                <span class='menu-title'>Control diario</span>
+              </a>
+            </li>
+
+            <li class='nav-item'>
               <a class='nav-link' href='?menu=linea'>
                 <span class='icon-bg'>
                   <i class='mdi mdi-source-branch menu-icon'></i>

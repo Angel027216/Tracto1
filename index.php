@@ -113,7 +113,7 @@ if ($menu === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$menusProtegidos = ['panel', 'micamion', 'miespacio', 'apartarespacio', 'pagos', 'respaldo', 'historial', 'accesos', 'pensionados', 'linea', 'perfil', 'password'];
+$menusProtegidos = ['panel', 'micamion', 'miespacio', 'apartarespacio', 'pagos', 'respaldo', 'historial', 'accesos', 'pensionados', 'linea', 'control_diario', 'perfil', 'password'];
 if (in_array($menu, $menusProtegidos, true) && !isset($_SESSION['usuario_id'])) {
     redirect('index.php?menu=login');
 }
@@ -358,6 +358,182 @@ else if ($menu=='linea'){
         : [];
 
     include 'views/Linea.php';
+}
+
+else if ($menu === 'control_diario') {
+    require_once 'models/ControlDiarioModel.php';
+    require_once 'controllers/ControlDiarioController.php';
+
+    $conexion = (new Database())->getConnection();
+    $controlDiarioModel = new ControlDiarioModel($conexion);
+    $controlDiarioController = new ControlDiarioController($controlDiarioModel);
+    $usuarioControlDiario = (int) ($_SESSION['usuario_id'] ?? 0);
+
+    if (!$controlDiarioModel->tieneAcceso($usuarioControlDiario)) {
+        abort(403, 'No tienes permiso para acceder a Control diario.');
+    }
+
+    $vistaControlDiario = $_GET['vista'] ?? 'entrada';
+    if (!is_string($vistaControlDiario) || !in_array($vistaControlDiario, ['entrada', 'salida', 'listado', 'reporte', 'fondo', 'material', 'imprimir'], true)) {
+        $vistaControlDiario = 'entrada';
+    }
+
+    $mensajeControlDiario = $_SESSION['control_diario_mensaje'] ?? null;
+    $folioCreadoControlDiario = (int) ($_SESSION['control_diario_folio_creado'] ?? 0);
+    $folioSalidaControlDiario = (int) ($_SESSION['control_diario_folio_salida'] ?? 0);
+    unset(
+        $_SESSION['control_diario_mensaje'],
+        $_SESSION['control_diario_folio_creado'],
+        $_SESSION['control_diario_folio_salida']
+    );
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        verify_csrf_token();
+
+        try {
+            $accionControlDiario = $_POST['accion'] ?? '';
+            if ($accionControlDiario === 'registrar_entrada') {
+                $resultadoControlDiario = $controlDiarioController->registrarEntrada($_POST, $usuarioControlDiario);
+            } elseif ($accionControlDiario === 'registrar_salida') {
+                $resultadoControlDiario = $controlDiarioController->registrarSalida($_POST, $usuarioControlDiario);
+            } elseif ($accionControlDiario === 'guardar_saldo_inicial') {
+                $resultadoControlDiario = $controlDiarioController->guardarSaldoInicial($_POST, $usuarioControlDiario);
+            } elseif ($accionControlDiario === 'registrar_egreso_fondo') {
+                $resultadoControlDiario = $controlDiarioController->registrarEgresoFondo($_POST, $usuarioControlDiario);
+            } elseif ($accionControlDiario === 'iniciar_turno') {
+                $resultadoControlDiario = $controlDiarioController->iniciarTurno($_POST, $usuarioControlDiario);
+            } elseif ($accionControlDiario === 'cerrar_turno') {
+                $resultadoControlDiario = $controlDiarioController->cerrarTurno($_POST, $usuarioControlDiario);
+            } else {
+                $resultadoControlDiario = [
+                    'tipo' => 'danger',
+                    'mensaje' => 'La operación solicitada no es válida.',
+                ];
+            }
+
+            if ($resultadoControlDiario['tipo'] === 'success') {
+                $_SESSION['control_diario_mensaje'] = $resultadoControlDiario['mensaje'];
+                if ($accionControlDiario === 'registrar_entrada') {
+                    $_SESSION['control_diario_folio_creado'] = (int) $resultadoControlDiario['folio'];
+                    redirect('index.php?menu=control_diario&vista=entrada');
+                }
+
+                if ($accionControlDiario === 'registrar_salida') {
+                    $_SESSION['control_diario_folio_salida'] = (int) $resultadoControlDiario['folio'];
+                    redirect('index.php?menu=control_diario&vista=salida');
+                }
+
+                if (in_array($accionControlDiario, ['iniciar_turno', 'cerrar_turno'], true)) {
+                    redirect('index.php?menu=control_diario&vista=material');
+                }
+
+                redirect('index.php?menu=control_diario&vista=fondo');
+            }
+
+            $mensajeControlDiario = $resultadoControlDiario;
+        } catch (PDOException $e) {
+            logger('Error de base de datos en Control diario: ' . $e->getMessage());
+            $mensajeControlDiario = [
+                'tipo' => 'danger',
+                'mensaje' => 'No se pudo completar la operación. Verifica los datos e inténtalo nuevamente.',
+            ];
+        } catch (RuntimeException $e) {
+            logger('Error de operación en Control diario: ' . $e->getMessage());
+            $mensajeControlDiario = [
+                'tipo' => 'danger',
+                'mensaje' => 'No se pudo completar la operación. Inténtalo nuevamente.',
+            ];
+        }
+    }
+
+    $folioCreadoControlDiario = (int) ($folioCreadoControlDiario ?: ($_SESSION['control_diario_folio_creado'] ?? 0));
+    $folioSalidaControlDiario = (int) ($folioSalidaControlDiario ?: ($_SESSION['control_diario_folio_salida'] ?? 0));
+    unset($_SESSION['control_diario_folio_creado'], $_SESSION['control_diario_folio_salida']);
+
+    $fechaControlDiario = $_GET['fecha'] ?? date('Y-m-d');
+    $fechaControlDiario = is_string($fechaControlDiario) ? $fechaControlDiario : '';
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaControlDiario)) {
+        $mensajeControlDiario = [
+            'tipo' => 'danger',
+            'mensaje' => 'La fecha indicada no es válida; se muestran los datos de hoy.',
+        ];
+        $fechaControlDiario = date('Y-m-d');
+    } else {
+        [$anioControlDiario, $mesControlDiario, $diaControlDiario] = array_map(
+            'intval',
+            explode('-', $fechaControlDiario)
+        );
+        if (!checkdate($mesControlDiario, $diaControlDiario, $anioControlDiario)) {
+            $mensajeControlDiario = [
+                'tipo' => 'danger',
+                'mensaje' => 'La fecha indicada no existe; se muestran los datos de hoy.',
+            ];
+            $fechaControlDiario = date('Y-m-d');
+        }
+    }
+
+    if ($vistaControlDiario === 'imprimir') {
+        $folioImpresion = filter_var(
+            $_GET['folio'] ?? null,
+            FILTER_VALIDATE_INT,
+            ['options' => ['min_range' => 1]]
+        );
+        if ($folioImpresion === false) {
+            abort(404);
+        }
+
+        $boletoImpresion = $controlDiarioModel->obtenerBoleto((int) $folioImpresion);
+        if (!$boletoImpresion) {
+            abort(404);
+        }
+
+        include 'views/ControlDiarioBoletoPrintView.php';
+    } elseif ($vistaControlDiario === 'reporte') {
+        try {
+            $reporteControlDiario = $controlDiarioModel->obtenerReporteDiario($fechaControlDiario);
+        } catch (PDOException $e) {
+            logger('Error cargando reporte de Control diario: ' . $e->getMessage());
+            $mensajeControlDiario = [
+                'tipo' => 'danger',
+                'mensaje' => 'No fue posible cargar el reporte diario. Inténtalo nuevamente.',
+            ];
+            $reporteControlDiario = [];
+        }
+
+        include 'views/ControlDiarioReporteView.php';
+    } else {
+        $busquedaControlDiario = $_GET['buscar'] ?? '';
+        $busquedaControlDiario = is_string($busquedaControlDiario) ? trim($busquedaControlDiario) : '';
+        $busquedaSalidaControlDiario = $busquedaControlDiario;
+
+        if (mb_strlen($busquedaControlDiario, 'UTF-8') > 60) {
+            $mensajeControlDiario = [
+                'tipo' => 'danger',
+                'mensaje' => 'La búsqueda no puede superar los 60 caracteres.',
+            ];
+            $busquedaControlDiario = mb_substr($busquedaControlDiario, 0, 60, 'UTF-8');
+            $busquedaSalidaControlDiario = $busquedaControlDiario;
+        }
+
+        $tarifasControlDiario = $vistaControlDiario === 'entrada'
+            ? $controlDiarioModel->obtenerTarifasActivas()
+            : [];
+        $activosControlDiario = $vistaControlDiario === 'salida'
+            ? $controlDiarioModel->listarActivos($busquedaControlDiario)
+            : [];
+        $boletosControlDiario = $vistaControlDiario === 'listado'
+            ? $controlDiarioModel->listarDelDia($fechaControlDiario, $busquedaControlDiario)
+            : [];
+        $fondoControlDiario = $controlDiarioModel->obtenerResumenFondo();
+        $egresosControlDiario = $vistaControlDiario === 'fondo'
+            ? $controlDiarioModel->listarEgresosFondoDelDia($fechaControlDiario)
+            : [];
+        $turnoAbiertoControlDiario = $vistaControlDiario === 'material'
+            ? $controlDiarioModel->obtenerTurnoAbierto()
+            : null;
+
+        include 'views/ControlDiarioView.php';
+    }
 }
 
 else if ($menu == 'perfil') {
